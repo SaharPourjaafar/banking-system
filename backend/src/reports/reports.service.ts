@@ -157,4 +157,78 @@ export class ReportsService {
       balance: String(totalIncome - totalExpense),
     };
   }
+
+  async getExpensesByCategory(
+    userId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<{
+    startDate: string;
+    endDate: string;
+    totalExpense: string;
+    categories: {
+      categoryId: number;
+      categoryName: string;
+      totalExpense: string;
+      percentage: number;
+    }[];
+  }> {
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be before or equal to end date',
+      );
+    }
+
+    const results = await this.transactionsRepository
+      .createQueryBuilder('transaction')
+      .innerJoin('transaction.category', 'category')
+      .select('category.id', 'categoryId')
+      .addSelect('category.name', 'categoryName')
+      .addSelect('COALESCE(SUM(transaction.amount), 0)', 'totalExpense')
+      .where('transaction.userId = :userId', { userId })
+      .andWhere('transaction.type = :expenseType', {
+        expenseType: TransactionType.EXPENSE,
+      })
+      .andWhere('transaction.transactionDate >= :startDate', {
+        startDate,
+      })
+      .andWhere(
+        'transaction.transactionDate < DATE_ADD(:endDate, INTERVAL 1 DAY)',
+        { endDate },
+      )
+      .groupBy('category.id')
+      .addGroupBy('category.name')
+      .orderBy('SUM(transaction.amount)', 'DESC')
+      .getRawMany<{
+        categoryId: number | string;
+        categoryName: string;
+        totalExpense: string;
+      }>();
+
+    const totalExpense = results.reduce(
+      (sum, category) => sum + Number(category.totalExpense),
+      0,
+    );
+
+    const categories = results.map((category) => {
+      const categoryExpense = Number(category.totalExpense);
+
+      return {
+        categoryId: Number(category.categoryId),
+        categoryName: category.categoryName,
+        totalExpense: String(categoryExpense),
+        percentage:
+          totalExpense === 0
+            ? 0
+            : Number(((categoryExpense / totalExpense) * 100).toFixed(2)),
+      };
+    });
+
+    return {
+      startDate,
+      endDate,
+      totalExpense: String(totalExpense),
+      categories,
+    };
+  }
 }

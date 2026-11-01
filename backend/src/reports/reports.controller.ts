@@ -61,4 +61,19 @@ export class ReportsController {
       query.month,
     );
   }
+
+  @Get('expenses-by-category')
+  @ApiOperation({ summary: 'Get expenses grouped by category' })
+  @ApiQuery({ name: 'startDate', example: '2026-10-01' })
+  @ApiQuery({ name: 'endDate', example: '2026-10-31' })
+  getExpensesByCategory(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: ReportSummaryQueryDto,
+  ) {
+    return this.reportsService.getExpensesByCategory(
+      req.user.id,
+      query.startDate,
+      query.endDate,
+    );
+  }
 }
